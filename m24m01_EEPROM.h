@@ -12,15 +12,19 @@ typedef enum
     ERR_READ,       //ошибка чтения
     ERR_WRITE,      //ошибка записи
     ERR_VER,        //ошибка верификации данных
-    ERR_ADR,        //ошибка адреса
-    ERR,            //ошибка    
-    
+    ERR_ADR        //ошибка адреса
 }eepromErr;
+
+typedef enum
+{
+  WRITE,  
+  READ    
+}eepromDir;
 
 
 //Запись/чтение/верификация EEPROM начиная с адреса "adr", из(в) массив "data" и колличеством байт "count"  
 eepromErr eeprom_write(uint32_t adr, uint8_t* data, uint16_t count); 
 eepromErr eeprom_read(uint32_t adr, uint8_t* data, uint16_t count);
 eepromErr eeprom_verifi(uint32_t adr, uint8_t* data, uint16_t count);
-eepromErr i2c_transmit(uint32_t adr, uint8_t* data, int32_t nBytes);
-eepromErr i2c_receive(uint32_t adr, uint8_t* data, uint16_t nBytes);
+eepromErr i2c_transmit(uint32_t adr, uint8_t* data, int16_t nBytes);
+eepromErr i2c_receive(uint32_t adr, uint8_t* data, uint16_t nBytes, eepromDir rw);
