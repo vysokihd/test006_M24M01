@@ -18,6 +18,7 @@
 #define TC_BIT                  I2C_ISR_TC_Pos                   //1 - передача NBYTE завершена
 #define TCR_BIT                 I2C_ISR_TCR_Pos                  //1 - передача NBYTE при RELOAD=1 завершена
 
+
 #define TXRX_MAX                255U                            //Максимальное количество передаваемых/получаемых байт контроллером I2C за одну передачу
 
 #define SET_I2C_ADR(adr)        I2C->CR2 |= (*((uint8_t*)&adr + 2) << 1 | EEPROM_BASE)   //установка I2C адреса
@@ -39,7 +40,7 @@
 0-й байт - младший байт адреса в EEPROM
 */
 
-uint32_t set_transmit_bytes(int32_t txBytes)
+static uint32_t set_transmit_bytes(int32_t txBytes)
 {
     if(txBytes <= TXRX_MAX)
     {
@@ -54,135 +55,159 @@ uint32_t set_transmit_bytes(int32_t txBytes)
     return txBytes;
 }
 
-
-bool wait_to_send()
+static bool wait_to_send()
 {
+    bool result = true;
+    uint32_t isr;
     while(1)
     {
-        if((I2C->ISR & (1 << NACKCF_BIT)) != 0)
+        isr = I2C->ISR;
+        if((isr & (1 << NACKCF_BIT)) != 0)
         {
-            return false;
+            result = false;
+            break;
         }
-        if((I2C->ISR & (1 << TXIS_BIT | 1 << TCR_BIT | 1 << TC_BIT)) != 0)
+        if((isr & (1 << TXIS_BIT | 1 << TCR_BIT | 1 << TC_BIT)) != 0)
         {
-            return true;
+            result = true;
+            break;
         }
     }
+    
+    return result;
 }
 
 /********************************************************************/
 //       Передача данных в шину i2c 
 /********************************************************************/
-eepromErr i2c_transmit(uint32_t adr, uint8_t* data, int16_t nBytes)
-{
-    //nBytes  - общее количество байт которое необходимо передать по шине I2C
-    I2C->ISR |= (1 << TXE_BIT);                     //Очистка регистра передатчика
-    I2C->CR2 = 0;                                   //Очистка регистра состояния
-    I2C->ICR = (1 << NACKCF_BIT);                   //Сброс флага NACK
-    nBytes += ADR_BYTES;                            //Установка общего количества передаваемых байт (адрес + данныые)
-    
-    uint32_t i = 0;                                 //Счётчик текущего передаваемого байта
-    
-    nBytes = set_transmit_bytes(nBytes);
-    
-    //*********** Установка адреса на шине I2C с внутренним адресом в EEPROM *********
-    SET_I2C_ADR(adr);                                               //установка адреса EEPROM на шине I2C (2-й байт)
-    
-    
-    START_COND();                                                   //Старт передачи данных
-    if(!wait_to_send())
-    {
-        STOP_COND();
-        return ERR_ADR;
-    }
-            
-    SET_EEPROM_ADR(adr, 1);                                         //Установка старшего байта адреса в EEPROM (1-й байт)
-    wait_to_send();                                                 //ожидание передачи данных
-        
-    SET_EEPROM_ADR(adr, 0);                                         //установка младшего байта адреса
-    wait_to_send();
-    
-    //*********** Передача данных ***********        
-    do
-    {
-        I2C->TXDR = data[i++];
-        wait_to_send();
-               
-        if((I2C->ISR & (1 << TCR_BIT)) != 0)
-        {
-            nBytes = set_transmit_bytes(nBytes);  
-        }         
-    }while(((I2C->ISR & (1 << TC_BIT)) == 0));
-   
-    STOP_COND();
-    return OK;
-}
+//eepromErr i2c_transmit(uint32_t adr, uint8_t* data, int16_t nBytes)
+//{
+//    eepromErr result = OK;
+//    
+//    //nBytes  - общее количество байт которое необходимо передать по шине I2C
+//    I2C->ISR |= (1 << TXE_BIT);                     //Очистка регистра передатчика
+//    nBytes += ADR_BYTES;                            //Установка общего количества передаваемых байт (адрес + данныые)
+//    
+//    uint32_t i = 0;                                 //Счётчик текущего передаваемого байта
+//    
+//    nBytes = set_transmit_bytes(nBytes);
+//    
+//    //*********** Установка адреса на шине I2C с внутренним адресом в EEPROM *********
+//    SET_I2C_ADR(adr);                                               //установка адреса EEPROM на шине I2C (2-й байт)
+//    
+//    
+//    START_COND();                                                   //Старт передачи данных
+//    if(!wait_to_send())
+//    {
+//        result = ERR_ADR;
+//        goto end_tr;        
+//    }
+//    
+//    SET_EEPROM_ADR(adr, 1);                                         //Установка старшего байта адреса в EEPROM (1-й байт)
+//    wait_to_send();                                                 //ожидание передачи данных
+//    
+//    SET_EEPROM_ADR(adr, 0);                                         //установка младшего байта адреса
+//    wait_to_send();
+//    
+//    //*********** Передача данных ***********        
+//    do
+//    {
+//        I2C->TXDR = data[i++];
+//        if(!wait_to_send())
+//        {
+//            result = ERR_WRITE;
+//            break;
+//        }
+//               
+//        if((I2C->ISR & (1 << TCR_BIT)) != 0)
+//        {
+//            nBytes = set_transmit_bytes(nBytes);  
+//        }         
+//    }while(((I2C->ISR & (1 << TC_BIT)) == 0));
+//
+//end_tr:   
+//    STOP_COND();
+//    return result;
+//}
 
 /********************************************************************/
-//       Приём данных из шины i2c 
+//       Приём/передача данных из/в шину i2c 
 /********************************************************************/
-eepromErr i2c_receive(uint32_t adr, uint8_t* data, uint16_t nBytes, eepromDir dir)
+eepromErr i2c_rw(uint32_t adr, uint8_t* data, uint16_t nBytes, eepromDir dir)
 {
     //nBytes  - общее количество байт которое необходимо передать по шине I2C
-    I2C->ISR |= (1 << TXE_BIT);                     //Очистка регистра передатчика
-    I2C->CR2 = 0;                                   //Очистка регистра состояния
-    I2C->ICR = (1 << NACKCF_BIT);                   //Сброс флага NACK
-    nBytes += ADR_BYTES;                            //Установка общего количества передаваемых байт (адрес + данныые)
+    I2C->ISR |= (1 << TXE_BIT);                         //Очистка регистра передатчика
+    I2C->CR2 &= ~(1 << RW_BIT);                         //Режим записи I2C
+    I2C->ICR = (1 << NACKCF_BIT);                       //Сброс NACK флага
+    I2C->ICR = (1 << STOPCF_BIT);                       //Сброс STOP флага
     
-    uint32_t i = 0;                                 //Счётчик текущего передаваемого байта
+    uint32_t i = 0;                                     //Счётчик текущего передаваемого байта
+            
+    if(dir == WR)
+    {
+        nBytes += ADR_BYTES;
+        nBytes = set_transmit_bytes(nBytes);
+    }
+    else if(dir == RD)
+    {
+        set_transmit_bytes(ADR_BYTES);
+    }
     
-    nBytes = set_transmit_bytes(nBytes);
-    
-    //*********** Установка адреса на шине I2C с внутренним адресом в EEPROM *********
-    SET_I2C_ADR(adr);                                               //установка адреса EEPROM на шине I2C (2-й байт)
-    
-    
-    START_COND();                                                   //Старт передачи данных
+    //******* Установка полного адреса (I2C адрес + EEPROM адрес) *********
+    SET_I2C_ADR(adr);                               //установка адреса EEPROM на шине I2C (2-й байт)
+    START_COND();                                   //Старт передачи данных
     if(!wait_to_send())
     {
-        STOP_COND();
-        return ERR_ADR;
+        return ERR_ADR;        
     }
-            
-    SET_EEPROM_ADR(adr, 1);                                         //Установка старшего байта адреса в EEPROM (1-й байт)
-    wait_to_send();                                                 //ожидание передачи данных
-        
-    SET_EEPROM_ADR(adr, 0);                                         //установка младшего байта адреса
+    
+    SET_EEPROM_ADR(adr, 1);                         //Установка старшего байта адреса в EEPROM (1-й байт)
+    wait_to_send();                                 //ожидание передачи данных
+    
+    SET_EEPROM_ADR(adr, 0);                         //установка младшего байта адреса
     wait_to_send();
     
-    if(dir == WRITE)
+    //*********** Передача данных ***********
+    if(dir == WR)
     {
-      //*********** Передача данных ***********        
-      do
-      {
-        I2C->TXDR = data[i++];
-        wait_to_send();
-        
-        if((I2C->ISR & (1 << TCR_BIT)) != 0)
+        while((I2C->ISR & (1 << TC_BIT)) == 0)
         {
-          nBytes = set_transmit_bytes(nBytes);  
-        }         
-      }while(((I2C->ISR & (1 << TC_BIT)) == 0));
-      
-    }
-    if(dir == READ)
+            I2C->TXDR = data[i++];
+            if(!wait_to_send())
+            {
+                STOP_COND();
+                return ERR_WRITE;
+            }
+            
+            if((I2C->ISR & (1 << TCR_BIT)) != 0)
+            {
+                nBytes = set_transmit_bytes(nBytes);  
+            }         
+        }
+    }  
+    
+    //*********** Приём данных ***********
+    else if(dir == RD)
     {
-      //*********** Приём данных ***********
-      I2C->CR2 |= (1 << RW_BIT);
-      START_COND();
-      do
-      {
-        while((I2C->ISR & (1 << RXNE_BIT)) == 0)
-          data[i++] = I2C->RXDR;
-        
-        if((I2C->ISR & (1 << TCR_BIT)) != 0)
+        nBytes = set_transmit_bytes(nBytes);
+        I2C->CR2 |= (1 << RW_BIT);
+        START_COND();
+        while((I2C->ISR & (1 << TC_BIT)) == 0)
         {
-          nBytes = set_transmit_bytes(nBytes);  
-        }         
-      }while(((I2C->ISR & (1 << TC_BIT)) == 0));
-    }
-        
-    STOP_COND();
+            while((I2C->ISR & ((1 << RXNE_BIT) | ( 1 << TC_BIT))) == 0)
+            {
+                asm("nop");
+            }
+           
+            data[i++] = I2C->RXDR;
+            
+            if((I2C->ISR & (1 << TCR_BIT)) != 0)
+            {
+                nBytes = set_transmit_bytes(nBytes);  
+            }         
+        }
+    }  
+    STOP_COND();      
     return OK;
 }
 

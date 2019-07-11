@@ -17,23 +17,35 @@ int main()
     mcu_init();
     delay_init(CPU_CLK);
     uint8_t data[768];
+    uint8_t recive[768];
     
-    for(uint16_t i = 0, j = 1; i < sizeof(data); i++, j++)
+    for(uint16_t i = 0, j = 0; i < sizeof(data); i++)
     {
-        data[i] = j;
-        if(j == 255) j = 0;
+        data[i] = j++;
+        if(j == 256) j = 0;
     }
-    //i2c_transmit(0x00, data, 253);
-    delay_ms(10);
-    i2c_transmit(0x00, data, 254);
-    delay_ms(6);
-    i2c_transmit(0x00, data, 255);
+    i2c_rw(0x00, data, 256, WR);
     delay_ms(1);
-    i2c_transmit(0x00, data, 256);
-    delay_ms(1);
-    i2c_transmit(0x00, data, 257);
+    i2c_rw(0x100, data, 256, WR);
     delay_ms(5);
-    i2c_transmit(0x00, data, 515);
+    i2c_rw(0x00, recive, 256, RD);
+    delay_ms(5);
+    i2c_rw(0x100, recive, 256, RD);
+    delay_ms(5);
+    i2c_rw(0x00, recive, 512, RD);
+    
+//    delay_ms(10);
+//    i2c_transmit(0x00, data, 254);
+//    delay_ms(6);
+//    i2c_transmit(0x00, data, 255);
+//    delay_ms(1);
+//    i2c_transmit(0x00, data, 256);
+//    delay_ms(1);
+//    i2c_transmit(0x00, data, 257);
+//    delay_ms(5);
+//    i2c_transmit(0x00, data, 515);
+    
+    
     
     
     while(true)
