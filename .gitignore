@@ -54,3 +54,4 @@ Module.symvers
 Mkfile.old
 dkms.conf
 /EEPROM_RW_CMSIS.dep
+/*.dep
