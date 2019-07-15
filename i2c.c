@@ -21,47 +21,113 @@
 
 #define TXRX_MAX                255U                            //Максимальное количество передаваемых/получаемых байт контроллером I2C за одну передачу
 
-#define SET_I2C_ADR(adr)        I2C->CR2 |= ((~(0x3FF) & I2C->CR2) | adr)   //установка I2C адреса
+#define SET_I2C_DEV(adr)        I2C->CR2 = ((~(0xFE) & I2C->CR2) | dev)   //установка I2C адреса
 #define SET_EEPROM_ADR(adr,x)   I2C->TXDR = (*((uint8_t*)&adr + x))                      //установка адреса внутри EEPROM
 #define SEND_BYTES_NORELOAD(x)  I2C->CR2 = (~(0x1FF << NBYTE) & I2C->CR2) | (x << NBYTE)                                 //установка кол-ва передаваемых принимаемых байт
 #define SEND_BYTES_RELOAD(x)    I2C->CR2 = (~(0x1FF << NBYTE) & I2C->CR2) | (x << NBYTE) | (1 << RELOAD)
 #define START_COND()            I2C->CR2 |= (1 << START_BIT)
 #define STOP_COND()             I2C->CR2 |= (1 << STOP_BIT)
-#define SET_WR()                I2C->CR2 &= (1 << RW_BIT)
+#define SET_WR()                I2C->CR2 &= ~(1 << RW_BIT)
 #define SET_RD()                I2C->CR2 |= (1 << RW_BIT)
 #define TRANSMIT_OK()           ((I2C->ISR & (1 << TXIS_BIT | 1 << TCR_BIT | 1 << TC_BIT)) != 0)
 #define NACKF()                 (I2C->ISR & (1 << NACK_BIT) != 0)
 
+static void set_transmit_bytes(int32_t txBytes);
+static bool wait_to_send();
+
+
 //******** Формирование адресной посылки в шину I2C ***************** 
-i2c_err i2c_device_select(uint8_t dev, i2c_mode mode)
+void i2c_device_select(uint8_t dev, i2c_mode mode)
 {
-    I2C->CR2 &= ~(0xf << NBYTE);    //Сброс количества передаваемых байт
-    I2C->ICR = (1 << NACKCF_BIT);   //Сброс NACK флага
-    I2C->ICR = (1 << STOPCF_BIT);   //Сброс STOP флага
-    I2C->ISR = (1 << TXE_BIT);      //Очистка регитра передатчика
-    //SET_I2C_ADR(dev);               //Выбор устройства на шине I2C
-    I2C->CR2 |= ((~(0x3FF) & I2C->CR2) | dev);
-    uint8_t result = I2C_OK;
+    I2C->ICR = (1 << NACKCF_BIT);               //Сброс NACK флага
+    I2C->ICR = (1 << STOPCF_BIT);               //Сброс STOP флага
+    I2C->ISR = (1 << TXE_BIT);                  //Очистка регитра передатчика
+    SET_I2C_DEV(dev);                           //Выбор устройства на шине I2C
     
-    if(mode.RW) SET_RD();           //Установка режима чтение или запись
-    else SET_WR();    
+    if(mode.RW) SET_WR();                       //Установка режима чтение или запись
+    else SET_RD();    
     
+    return;
+}
+
+//******** Формирование адресной посылки в шину I2C *****************
+uint8_t i2c_transmit(uint8_t* data, uint16_t nBytes, i2c_mode mode)
+{
+    if(nBytes == 0) return I2C_NODATA;
+    I2C->ISR = (1 << TXE_BIT);                //Очистка регитра передатчика
+    uint16_t item = 0;                        //Счётчик текущего передаваемого байта
+    set_transmit_bytes(nBytes);
     START_COND();
-    if(NACKF()) result = I2C_NACKF;
     
-    if(mode.STOP || result == I2C_NACKF) STOP_COND();
+    
+//    if(!wait_to_send())
+//    {
+//        return I2C_NACKF;        
+//    }
+//    while(nBytes > 0)
+//    {
+//        I2C->TXDR = data[item++];
+//            if(!wait_to_send())
+//            {
+//                STOP_COND();
+//                return I2C_ERR_TX;
+//            }
+//            
+//            if((I2C->ISR & (1 << TCR_BIT)) != 0)
+//            {
+//                set_transmit_bytes(nBytes);  
+//            }
+//            nBytes--;
+//    }
+    
+    
+    
+    STOP_COND();      
+    return I2C_TX_OK;
+}
+
+//******** Формирование адресной посылки в шину I2C *****************
+uint8_t i2c_receive(uint8_t* data, uint16_t count, i2c_mode mode)
+{
+    return I2C_RX_OK;
+}
+
+
+
+
+static void set_transmit_bytes(int32_t txBytes)
+{
+    if(txBytes <= TXRX_MAX)
+    {
+        SEND_BYTES_NORELOAD(txBytes);
+        //txBytes = 0;
+    }
+    else
+    {
+        SEND_BYTES_RELOAD(TXRX_MAX);
+        //txBytes -= TXRX_MAX;
+    }
+    //return txBytes;
+}
+
+static bool wait_to_send()
+{
+    bool result = true;
+    uint32_t isr;
+    while(1)
+    {
+        isr = I2C->ISR;
+        if((isr & (1 << NACKCF_BIT)) != 0)
+        {
+            result = false;
+            break;
+        }
+        if((isr & (1 << TXIS_BIT | 1 << TCR_BIT | 1 << TC_BIT)) != 0)
+        {
+            result = true;
+            break;
+        }
+    }
     
     return result;
-}
-
-//******** Формирование адресной посылки в шину I2C *****************
-i2c_err i2c_transmit(uint8_t* data, uint16_t count, i2c_mode mode)
-{
-    return I2C_OK;
-}
-
-//******** Формирование адресной посылки в шину I2C *****************
-i2c_err i2c_receive(uint8_t* data, uint16_t count, i2c_mode mode)
-{
-    return I2C_OK;
 }

@@ -25,13 +25,14 @@ int main()
         data[i] = j++;
         if(j == 256) j = 0;
     }
-    i2c_mode mode = {0};
-    mode.RW = 1;
-    mode.STOP = 1;
-    uint8_t result = i2c_device_select(0x09, mode);
-    result = i2c_device_select(0xA0, mode);
-    result = i2c_device_select(0xB1, mode);
-    result = i2c_device_select(0xC2, mode);
+    i2c_mode mode = {.STOP = 0, .RW = 1, .START = 1};
+    //mode.RW = 0;
+    //mode.STOP = 1;
+    //mode.NOSTART = 1;
+    i2c_device_select(0x08, mode);
+    i2c_device_select(0xA0, mode);
+    i2c_device_select(0xB2, mode);
+    i2c_device_select(0xC4, mode);
     //i2c_device_select(0xA0, );
     
 //    i2c_rw(0x00, data, 256, WR);

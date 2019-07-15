@@ -4,16 +4,20 @@
 
 typedef enum
 {
-    I2C_OK,
+    I2C_TX_OK,
+    I2C_RX_OK,
     I2C_NACKF,
+    I2C_NODATA,
+    I2C_ERR_TX,
+    I2C_ERR_RX
         
-}i2c_err;
+}i2c_status;
 
 
 typedef struct
 {
     uint8_t STOP:1;             //1- формировать, 0 - не формировать СТОП
-    uint8_t NOSTART:1;          //0 - формировать, 1 - не формировать СТАРТ
+    uint8_t START:1;          //1 - формировать, 0 - не формировать СТАРТ
     uint8_t RW:1;               //1 - запись, 0 - чтение
     
 }i2c_mode;
@@ -28,10 +32,10 @@ typedef struct
 */
 
 //******** Формирование адресной посылки в шину I2C ***************** 
-i2c_err i2c_device_select(uint8_t dev, i2c_mode mode);
+void i2c_device_select(uint8_t dev, i2c_mode mode);
 
 //******** Передача данных в шину I2C *******************************
-i2c_err i2c_transmit(uint8_t* data, uint16_t count, i2c_mode mode);
+uint8_t i2c_transmit(uint8_t* data, uint16_t nBytes, i2c_mode mode);
 
 //******** Чтение данных из шины I2C ********************************
-i2c_err i2c_receive(uint8_t* data, uint16_t count, i2c_mode mode);
+uint8_t i2c_receive(uint8_t* data, uint16_t nBytes, i2c_mode mode);
