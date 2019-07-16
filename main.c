@@ -25,14 +25,35 @@ int main()
         data[i] = j++;
         if(j == 256) j = 0;
     }
-    i2c_mode mode = {.STOP = 0, .RW = 1, .START = 1};
-    //mode.RW = 0;
-    //mode.STOP = 1;
+    //i2c_mode mode = {.STOP = 1, .RW = 1, .START = 1, .RESTART = 0};
+    i2c_mode mode;
+    //mode.RESTART = 1;
+    mode.RW = 1;
+    mode.STOP = 1;
+    mode.START = 1;
     //mode.NOSTART = 1;
     i2c_device_select(0x08, mode);
+    i2c_transmit(data, 10, mode);
+    delay_ms(5);
     i2c_device_select(0xA0, mode);
+    i2c_transmit(data, 10, mode);
+    delay_ms(5);
     i2c_device_select(0xB2, mode);
-    i2c_device_select(0xC4, mode);
+    i2c_transmit(data, 10, mode);
+    delay_ms(5);
+    i2c_device_select(0xA0, mode);
+    
+    mode.START = 1; mode.STOP = 0;
+    i2c_transmit(data, 2, mode);
+    mode.START = 1; mode.STOP = 1; mode.RW = 0;
+    i2c_receive(recive, 10, mode);    
+   
+    
+    
+//    i2c_device_select(0x08, mode);
+//    i2c_device_select(0xA0, mode);
+//    i2c_device_select(0xB2, mode);
+//    i2c_device_select(0xC4, mode);
     //i2c_device_select(0xA0, );
     
 //    i2c_rw(0x00, data, 256, WR);
