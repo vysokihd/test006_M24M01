@@ -20,10 +20,10 @@
 
 #define TXRX_MAX                255U                            //Максимальное количество передаваемых/получаемых байт контроллером I2C за одну передачу
 
-#define SET_I2C_DEV(adr)        I2C->CR2 = ((~(0xFE) & I2C->CR2) | dev)   //установка I2C адреса
+#define SET_I2C_DEV(adr)        I2C->CR2 = ((~(0xFE) & I2C->CR2) | dev)                  //установка I2C адреса
 #define SET_EEPROM_ADR(adr,x)   I2C->TXDR = (*((uint8_t*)&adr + x))                      //установка адреса внутри EEPROM
 #define SEND_BYTES_NORELOAD(x)  I2C->CR2 = (~(0x1FF << NBYTE) & I2C->CR2) | (x << NBYTE)                                 //установка кол-ва передаваемых принимаемых байт
-#define SEND_BYTzES_RELOAD(x)    I2C->CR2 = (~(0x1FF << NBYTE) & I2C->CR2) | (x << NBYTE) | (1 << RELOAD)
+#define SEND_BYTES_RELOAD(x)    I2C->CR2 = (~(0x1FF << NBYTE) & I2C->CR2) | (x << NBYTE) | (1 << RELOAD)
 #define START_COND()            I2C->CR2 |= (1 << START_BIT)
 #define STOP_COND()             I2C->CR2 |= (1 << STOP_BIT)
 #define SET_WR()                I2C->CR2 &= ~(1 << RW_BIT)
@@ -34,7 +34,7 @@
 #define TRANSFER_COMPL_REL()    ((I2C->ISR & (1 << TCR_BIT)) != 0)
 
 
-static uint8_t set_transmit_bytes(int16_t txBytes, i2c_mode mode);
+static uint8_t set_transmit_mode(int16_t txBytes, i2c_mode mode);
 static bool wait_to_send();
 
 
@@ -60,7 +60,7 @@ uint8_t i2c_transmit(uint8_t* data, uint16_t nBytes, i2c_mode mode)
     if(nBytes == 0) return I2C_NODATA;
    
     I2C->ISR = (1 << TXE_BIT);                //Очистка регитра передатчика
-    tx = set_transmit_bytes(nBytes, mode);    //Установка количества передаваемых байт
+    tx = set_transmit_mode(nBytes, mode);    //Установка количества передаваемых байт
     
     
     if(mode.START) START_COND();
@@ -83,7 +83,7 @@ uint8_t i2c_transmit(uint8_t* data, uint16_t nBytes, i2c_mode mode)
         }
         if(TRANSFER_COMPL_REL())
         {
-            tx = set_transmit_bytes(nBytes, mode);
+            tx = set_transmit_mode(nBytes, mode);
         }
     }
 
@@ -101,7 +101,7 @@ uint8_t i2c_receive(uint8_t* data, uint16_t nBytes, i2c_mode mode)
     
     if(nBytes == 0) return I2C_NODATA;
    
-    rx = set_transmit_bytes(nBytes, mode);          //Установка количества принимаемых байт
+    rx = set_transmit_mode(nBytes, mode);          //Установка количества принимаемых байт
             
     if(mode.START == 1) START_COND();
     
@@ -115,12 +115,12 @@ uint8_t i2c_receive(uint8_t* data, uint16_t nBytes, i2c_mode mode)
     {
         for(; rx > 0; rx--, nBytes--, item++)
         {
-            while((I2C->ISR & (1 << RXNE_BIT)) != 0);
+            while((I2C->ISR & (1 << RXNE_BIT)) == 0);
             data[item] = I2C->RXDR;
         }
         if(TRANSFER_COMPL_REL())
         {
-            rx = set_transmit_bytes(nBytes,mode);
+            rx = set_transmit_mode(nBytes,mode);
         }
     }
 
@@ -132,21 +132,36 @@ uint8_t i2c_receive(uint8_t* data, uint16_t nBytes, i2c_mode mode)
 
 
 
-static uint8_t set_transmit_bytes(int16_t txBytes, i2c_mode mode)
+static uint8_t set_transmit_mode(int16_t txBytes, i2c_mode mode)
 {
-    uint8_t tx;
+    uint32_t cr2 = I2C->CR2;
+    cr2 &= ~((0xFF << NBYTE) | (1 << RELOAD) | (1 << RW_BIT));
+    //cr2 = ~(1 << RELOAD) & cr2;
+    //cr2 = ~(1 << RW_BIT) & cr2;
+    cr2 |= (mode.RW << RW_BIT);
+    
+        
     if(txBytes <= TXRX_MAX)
     {
-        if(mode.STOP == 0) SEND_BYTES_RELOAD(txBytes);
-        else SEND_BYTES_NORELOAD(txBytes);
-        tx = txBytes;
+        if(mode.STOP == 0)
+        {
+           cr2 |= (txBytes << NBYTE) | (1 << RELOAD); 
+        }
+        else
+        {
+            cr2 |= (txBytes << NBYTE);
+        }
+        //if(!mode.STOP) SEND_BYTES_RELOAD(txBytes);
+        //else SEND_BYTES_NORELOAD(txBytes);
     }
     else
     {
-        SEND_BYTES_RELOAD(TXRX_MAX);
-        tx = TXRX_MAX;
+        cr2 |= (TXRX_MAX << NBYTE) | (1 << RELOAD);
+        //SEND_BYTES_RELOAD(TXRX_MAX);
+        txBytes = TXRX_MAX;
     }
-    return tx;
+    I2C->CR2 = cr2;
+    return txBytes;
 }
 
 static bool wait_to_send()

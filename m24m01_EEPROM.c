@@ -40,7 +40,7 @@
 0-й байт - младший байт адреса в EEPROM
 */
 
-static uint32_t set_transmit_bytes(int32_t txBytes)
+static uint32_t set_transmit_mode(int32_t txBytes)
 {
     if(txBytes <= TXRX_MAX)
     {
@@ -90,7 +90,7 @@ static bool wait_to_send()
 //    
 //    uint32_t i = 0;                                 //Счётчик текущего передаваемого байта
 //    
-//    nBytes = set_transmit_bytes(nBytes);
+//    nBytes = set_transmit_mode(nBytes);
 //    
 //    //*********** Установка адреса на шине I2C с внутренним адресом в EEPROM *********
 //    SET_I2C_ADR(adr);                                               //установка адреса EEPROM на шине I2C (2-й байт)
@@ -121,7 +121,7 @@ static bool wait_to_send()
 //               
 //        if((I2C->ISR & (1 << TCR_BIT)) != 0)
 //        {
-//            nBytes = set_transmit_bytes(nBytes);  
+//            nBytes = set_transmit_mode(nBytes);  
 //        }         
 //    }while(((I2C->ISR & (1 << TC_BIT)) == 0));
 //
@@ -146,11 +146,11 @@ eepromErr i2c_rw(uint32_t adr, uint8_t* data, uint16_t nBytes, eepromDir dir)
     if(dir == WR)
     {
         nBytes += ADR_BYTES;
-        nBytes = set_transmit_bytes(nBytes);
+        nBytes = set_transmit_mode(nBytes);
     }
     else if(dir == RD)
     {
-        set_transmit_bytes(ADR_BYTES);
+        set_transmit_mode(ADR_BYTES);
     }
     
     //******* Установка полного адреса (I2C адрес + EEPROM адрес) *********
@@ -181,7 +181,7 @@ eepromErr i2c_rw(uint32_t adr, uint8_t* data, uint16_t nBytes, eepromDir dir)
             
             if((I2C->ISR & (1 << TCR_BIT)) != 0)
             {
-                nBytes = set_transmit_bytes(nBytes);  
+                nBytes = set_transmit_mode(nBytes);  
             }         
         }
     }  
@@ -189,7 +189,7 @@ eepromErr i2c_rw(uint32_t adr, uint8_t* data, uint16_t nBytes, eepromDir dir)
     //*********** Приём данных ***********
     else if(dir == RD)
     {
-        nBytes = set_transmit_bytes(nBytes);
+        nBytes = set_transmit_mode(nBytes);
         I2C->CR2 |= (1 << RW_BIT);
         START_COND();
         while((I2C->ISR & (1 << TC_BIT)) == 0)
@@ -203,7 +203,7 @@ eepromErr i2c_rw(uint32_t adr, uint8_t* data, uint16_t nBytes, eepromDir dir)
             
             if((I2C->ISR & (1 << TCR_BIT)) != 0)
             {
-                nBytes = set_transmit_bytes(nBytes);  
+                nBytes = set_transmit_mode(nBytes);  
             }         
         }
     }  

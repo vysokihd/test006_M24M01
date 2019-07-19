@@ -28,7 +28,7 @@ int main()
     //i2c_mode mode = {.STOP = 1, .RW = 1, .START = 1, .RESTART = 0};
     i2c_mode mode;
     //mode.RESTART = 1;
-    mode.RW = 1;
+    mode.RW = 0;
     mode.STOP = 1;
     mode.START = 1;
     //mode.NOSTART = 1;
@@ -45,7 +45,7 @@ int main()
     
     mode.START = 1; mode.STOP = 0;
     i2c_transmit(data, 2, mode);
-    mode.START = 1; mode.STOP = 1; mode.RW = 0;
+    mode.START = 1; mode.STOP = 1; mode.RW = 1;
     i2c_receive(recive, 10, mode);    
    
     
