@@ -34,65 +34,81 @@
 #define TRANSFER_COMPL_REL()    ((I2C->ISR & (1 << TCR_BIT)) != 0)
 
 
-static uint8_t set_transmit_mode(int16_t txBytes, i2c_mode mode);
+//static uint8_t i2c_dev;     //Адрес устройства на шине i2c (7..1 бит) + чтение-запись(0 бит)
+static uint16_t nBytes;     //Количество передаваемых и получаемых байт по шине i2c
+//static uint8_t* data;       //Указатель на массив чтения и записи
+static bool busy;           //true - шина занята, false - шина свободна
+
+static uint8_t set_transmit_bytes(int16_t txBytes);
 static bool wait_to_send();
 
 
-//******** Формирование адресной посылки в шину I2C ***************** 
-void i2c_device_select(uint8_t dev, i2c_mode mode)
+//******** Выбор устройства на шине I2C ***************** 
+void I2C_device_select(uint8_t dev)
 {
     I2C->ICR = (1 << NACKCF_BIT);               //Сброс NACK флага
     I2C->ICR = (1 << STOPCF_BIT);               //Сброс STOP флага
     I2C->ISR = (1 << TXE_BIT);                  //Очистка регитра передатчика
+    //i2c_dev = dev;                            //Адрес устройства на шине i2c
     SET_I2C_DEV(dev);                           //Выбор устройства на шине I2C
-        
-    
     return;
 }
 
-//******** Передача данных в шину I2C *******************************
-uint8_t i2c_transmit(uint8_t* data, uint16_t nBytes, i2c_mode mode)
+
+////********* Подготовка шины i2c к передаче дынны ********************/
+//void I2C_start(size)
+//{
+//    nBytes = size;
+//}
+
+//******** Передача данных в шину i2c данными по шине I2C *******************************/
+i2c_status I2C_write(uint8_t* data, uint16_t size)
 {
-    //nBytes - общее количество байт предназначеное для передачи
+    if(size == 0) return I2C_NODATA;
+    if(busy) return I2C_BUSY;
+    
     uint16_t item = 0;                        //Счётчик текущего передаваемого байта
-    uint8_t tx;                               //Кол-во передаваемых байт во фрэйме
+    uint8_t tx = 0;                           //Кол-во передаваемых байт во фрэйме
+    nBytes = size;
     
-    if(nBytes == 0) return I2C_NODATA;
-   
+    SET_WR();                                 //Установка режима записи
     I2C->ISR = (1 << TXE_BIT);                //Очистка регитра передатчика
-    tx = set_transmit_mode(nBytes, mode);    //Установка количества передаваемых байт
-    
-    
-    if(mode.START) START_COND();
+    tx = set_transmit_bytes(nBytes);          //Установка количества передаваемых байт
+    busy = true;
+    START_COND();                             //Начать передачу данных
     
     if(!wait_to_send())                       //Ожидание отправки адресной посылки
     {
+        busy = false;
         return I2C_NACKF;                     //Ошибка, не получен ответ.
     }
     
     //Передача данных в шину I2C побайтно
-    while(nBytes > 0)
+    while(1)
     {
-        for(; tx > 0; tx--, nBytes--, item++)
+        while(tx > 0)
         {
-            I2C->TXDR = data[item];
+            I2C->TXDR = data[item++];
             if(!wait_to_send())                       //Ожидание отправки адресной посылки
             {
-                return I2C_NACKF;                     //Ошибка, не получен ответ.
+                busy = false;
+                return I2C_ERR;                       //Ошибка, не получен ответ.
             }
+            tx--;
         }
+        //nBytes -= tx;
         if(TRANSFER_COMPL_REL())
         {
-            tx = set_transmit_mode(nBytes, mode);
+            tx = set_transmit_bytes(nBytes);
         }
+        if(TRANSFER_COMPL()) break;
     }
-
-    if(mode.STOP) STOP_COND();      
-    return I2C_TX_OK;
+    return I2C_OK;
 }
 
-//******** Формирование адресной посылки в шину I2C *****************
-uint8_t i2c_receive(uint8_t* data, uint16_t nBytes, i2c_mode mode)
+
+//********  *****************
+i2c_status i2c_read(uint8_t* data, uint16_t nBytes)
 {
     //nBytes - общее количество принимаемых байт
     uint16_t item = 0;                        //Счётчик текущего принимаемого байта
@@ -101,9 +117,9 @@ uint8_t i2c_receive(uint8_t* data, uint16_t nBytes, i2c_mode mode)
     
     if(nBytes == 0) return I2C_NODATA;
    
-    rx = set_transmit_mode(nBytes, mode);          //Установка количества принимаемых байт
+    rx = set_transmit_mode(nBytes);          //Установка количества принимаемых байт
             
-    if(mode.START == 1) START_COND();
+    /*if(mode.START == 1)*/ START_COND();
     
     if(!wait_to_send())                       //Ожидание отправки адресной посылки
     {
@@ -120,47 +136,35 @@ uint8_t i2c_receive(uint8_t* data, uint16_t nBytes, i2c_mode mode)
         }
         if(TRANSFER_COMPL_REL())
         {
-            rx = set_transmit_mode(nBytes,mode);
+            rx = set_transmit_mode(nBytes);
         }
     }
 
-    if(mode.STOP == 1) STOP_COND();      
+    /*if(mode.STOP == 1)*/ STOP_COND();      
     
-    return I2C_RX_OK;
+    return I2C_OK;
 }
 
 
 
 
-static uint8_t set_transmit_mode(int16_t txBytes, i2c_mode mode)
+static uint8_t set_transmit_bytes(int16_t txBytes)
 {
-    uint32_t cr2 = I2C->CR2;
-    cr2 &= ~((0xFF << NBYTE) | (1 << RELOAD) | (1 << RW_BIT));
-    //cr2 = ~(1 << RELOAD) & cr2;
-    //cr2 = ~(1 << RW_BIT) & cr2;
-    cr2 |= (mode.RW << RW_BIT);
-    
-        
+    //uint32_t cr2 = I2C->CR2;
+    //cr2 &= ~((0xFF << NBYTE) | (1 << RELOAD));
+                
     if(txBytes <= TXRX_MAX)
     {
-        if(mode.STOP == 0)
-        {
-           cr2 |= (txBytes << NBYTE) | (1 << RELOAD); 
-        }
-        else
-        {
-            cr2 |= (txBytes << NBYTE);
-        }
-        //if(!mode.STOP) SEND_BYTES_RELOAD(txBytes);
-        //else SEND_BYTES_NORELOAD(txBytes);
+        //cr2 |= (txBytes << NBYTE);
+        SEND_BYTES_NORELOAD(txBytes);
     }
     else
     {
-        cr2 |= (TXRX_MAX << NBYTE) | (1 << RELOAD);
-        //SEND_BYTES_RELOAD(TXRX_MAX);
+        //cr2 |= (TXRX_MAX << NBYTE) | (1 << RELOAD);
+        SEND_BYTES_RELOAD(TXRX_MAX);
         txBytes = TXRX_MAX;
     }
-    I2C->CR2 = cr2;
+    //I2C->CR2 = cr2;
     return txBytes;
 }
 
@@ -184,5 +188,11 @@ static bool wait_to_send()
     }
     
     return result;
+}
+
+void I2C_stop()
+{
+    STOP_COND();
+    busy = false;
 }
 

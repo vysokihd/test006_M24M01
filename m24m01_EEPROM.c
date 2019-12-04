@@ -3,20 +3,20 @@
 #include "m24m01_EEPROM.h"
 #include "delay.h"
 
-#define NBYTE                   I2C_CR2_NBYTES_Pos	         //Количество передаваемыи и получаемых байт (до 255 байт)
-#define RELOAD                  I2C_CR2_RELOAD_Pos               //Если NBYTE переданы 0 - прекратить 1 - продолжать передачу
-#define RW_BIT		            I2C_CR2_RD_WRN_Pos         	     //1 - чтение, 0 - запись
-#define START_BIT		        I2C_CR2_START_Pos                //1 - старт, рестарт передачи
-#define STOP_BIT		        I2C_CR2_STOP_Pos             	 //1 - стоп после передачи текущего байта
-#define AUTOEND_BIT             I2C_CR2_AUTOEND_Pos              //1 - autoEnd mode, 0 - softMode 
-#define NACK_BIT		        I2C_CR2_NACK_Pos		 //1 - нет ответа(устанавл аппаратно), сбрасывается программно I2C_ICR.NACKCF
-#define RXNE_BIT		        I2C_ISR_RXNE_Pos		 //1 - данные приняты
-#define TXE_BIT		            I2C_ISR_TXE_Pos			 //1 - регистр пуст и готов для записи новых данных (запись единицы очищает регистр передачи)
-#define TXIS_BIT                I2C_ISR_TXIS_Pos                 //1 - регистр пуст и получен ответ ACK
-#define NACKCF_BIT		        I2C_ISR_NACKF_Pos		 //1 - сброс бита NACK
-#define STOPCF_BIT		        I2C_ISR_STOPF_Pos		 //1 - сброс стоп бита
-#define TC_BIT                  I2C_ISR_TC_Pos                   //1 - передача NBYTE завершена
-#define TCR_BIT                 I2C_ISR_TCR_Pos                  //1 - передача NBYTE при RELOAD=1 завершена
+#define NBYTE                   I2C_CR2_NBYTES_Pos	            //Количество передаваемыи и получаемых байт (до 255 байт)
+#define RELOAD                  I2C_CR2_RELOAD_Pos              //Если NBYTE переданы 0 - прекратить 1 - продолжать передачу
+#define RW_BIT		            I2C_CR2_RD_WRN_Pos         	    //1 - чтение, 0 - запись
+#define START_BIT		        I2C_CR2_START_Pos               //1 - старт, рестарт передачи
+#define STOP_BIT		        I2C_CR2_STOP_Pos             	//1 - стоп после передачи текущего байта
+#define AUTOEND_BIT             I2C_CR2_AUTOEND_Pos             //1 - autoEnd mode, 0 - softMode 
+#define NACK_BIT		        I2C_CR2_NACK_Pos		        //1 - нет ответа(устанавл аппаратно), сбрасывается программно I2C_ICR.NACKCF
+#define RXNE_BIT		        I2C_ISR_RXNE_Pos		        //1 - данные приняты
+#define TXE_BIT		            I2C_ISR_TXE_Pos			        //1 - регистр пуст и готов для записи новых данных (запись единицы очищает регистр передачи)
+#define TXIS_BIT                I2C_ISR_TXIS_Pos                //1 - регистр пуст и получен ответ ACK
+#define NACKCF_BIT		        I2C_ISR_NACKF_Pos		        //1 - сброс бита NACK
+#define STOPCF_BIT		        I2C_ISR_STOPF_Pos		        //1 - сброс стоп бита
+#define TC_BIT                  I2C_ISR_TC_Pos                  //1 - передача NBYTE завершена
+#define TCR_BIT                 I2C_ISR_TCR_Pos                 //1 - передача NBYTE при RELOAD=1 завершена
 
 
 #define TXRX_MAX                255U                            //Максимальное количество передаваемых/получаемых байт контроллером I2C за одну передачу

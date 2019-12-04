@@ -25,57 +25,11 @@ int main()
         data[i] = j++;
         if(j == 256) j = 0;
     }
-    //i2c_mode mode = {.STOP = 1, .RW = 1, .START = 1, .RESTART = 0};
-    i2c_mode mode;
-    //mode.RESTART = 1;
-    mode.RW = 0;
-    mode.STOP = 1;
-    mode.START = 1;
-    //mode.NOSTART = 1;
-    i2c_device_select(0x08, mode);
-    i2c_transmit(data, 10, mode);
-    delay_ms(5);
-    i2c_device_select(0xA0, mode);
-    i2c_transmit(data, 10, mode);
-    delay_ms(5);
-    i2c_device_select(0xB2, mode);
-    i2c_transmit(data, 10, mode);
-    delay_ms(5);
-    i2c_device_select(0xA0, mode);
     
-    mode.START = 1; mode.STOP = 0;
-    i2c_transmit(data, 2, mode);
-    mode.START = 1; mode.STOP = 1; mode.RW = 1;
-    i2c_receive(recive, 10, mode);    
+    I2C_device_select(0xA0);
+    I2C_write(data, 10);
+    I2C_stop();
    
-    
-    
-//    i2c_device_select(0x08, mode);
-//    i2c_device_select(0xA0, mode);
-//    i2c_device_select(0xB2, mode);
-//    i2c_device_select(0xC4, mode);
-    //i2c_device_select(0xA0, );
-    
-//    i2c_rw(0x00, data, 256, WR);
-//    delay_ms(1);
-//    i2c_rw(0x100, data, 256, WR);
-//    delay_ms(5);
-//    i2c_rw(0x00, recive, 256, RD);
-//    delay_ms(5);
-//    i2c_rw(0x100, recive, 256, RD);
-//    delay_ms(5);
-//    i2c_rw(0x00, recive, 512, RD);
-    
-//    delay_ms(10);
-//    i2c_transmit(0x00, data, 254);
-//    delay_ms(6);
-//    i2c_transmit(0x00, data, 255);
-//    delay_ms(1);
-//    i2c_transmit(0x00, data, 256);
-//    delay_ms(1);
-//    i2c_transmit(0x00, data, 257);
-//    delay_ms(5);
-//    i2c_transmit(0x00, data, 515);
     
     
     
