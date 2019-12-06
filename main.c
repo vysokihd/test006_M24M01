@@ -18,7 +18,7 @@ int main()
     mcu_init();
     delay_init(CPU_CLK);
     uint8_t data[768];
-    uint8_t recive[768] = {0};
+    //uint8_t recive[768] = {0};
     
     for(uint16_t i = 0, j = 0; i < sizeof(data); i++)
     {
@@ -28,8 +28,10 @@ int main()
     
     I2C_device_select(0xA0);
     I2C_write(data, 10);
+    //I2C_stop();
+    delay_ms(10);
+    I2C_write(data , 4);
     I2C_stop();
-   
     
     
     

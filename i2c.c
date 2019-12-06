@@ -17,6 +17,7 @@
 #define STOPCF_BIT		        I2C_ISR_STOPF_Pos		        //1 - сброс стоп бита
 #define TC_BIT                  I2C_ISR_TC_Pos                  //1 - передача NBYTE завершена
 #define TCR_BIT                 I2C_ISR_TCR_Pos                 //1 - передача NBYTE при RELOAD=1 завершена
+#define BUSY_BIT                I2C_ISR_BUSY_Pos            //1 - шина занята, 0 - шина свободна
 
 #define TXRX_MAX                255U                            //Максимальное количество передаваемых/получаемых байт контроллером I2C за одну передачу
 
@@ -32,14 +33,15 @@
 #define NACKF()                 ((I2C->ISR & (1 << NACK_BIT)) != 0)
 #define TRANSFER_COMPL()        ((I2C->ISR & (1 << TC_BIT)) != 0)
 #define TRANSFER_COMPL_REL()    ((I2C->ISR & (1 << TCR_BIT)) != 0)
+#define BUSY()                  ((I2C->ISR & (1 << BUSY_BIT)) != 0)
 
 
 //static uint8_t i2c_dev;     //Адрес устройства на шине i2c (7..1 бит) + чтение-запись(0 бит)
 static uint16_t nBytes;     //Количество передаваемых и получаемых байт по шине i2c
 //static uint8_t* data;       //Указатель на массив чтения и записи
-static bool busy;           //true - шина занята, false - шина свободна
+//static bool busy;           //true - шина занята, false - шина свободна
 
-static uint8_t set_transmit_bytes(int16_t txBytes);
+static void set_transmit_bytes(int16_t bytes);
 static bool wait_to_send();
 
 
@@ -65,41 +67,33 @@ void I2C_device_select(uint8_t dev)
 i2c_status I2C_write(uint8_t* data, uint16_t size)
 {
     if(size == 0) return I2C_NODATA;
-    if(busy) return I2C_BUSY;
+    //if(BUSY()) return I2C_BUSY;
     
     uint16_t item = 0;                        //Счётчик текущего передаваемого байта
-    uint8_t tx = 0;                           //Кол-во передаваемых байт во фрэйме
     nBytes = size;
-    
+       
     SET_WR();                                 //Установка режима записи
     I2C->ISR = (1 << TXE_BIT);                //Очистка регитра передатчика
-    tx = set_transmit_bytes(nBytes);          //Установка количества передаваемых байт
-    busy = true;
+    set_transmit_bytes(nBytes);               //Установка количества передаваемых байт за фрейм
     START_COND();                             //Начать передачу данных
     
     if(!wait_to_send())                       //Ожидание отправки адресной посылки
     {
-        busy = false;
+        //busy = false;
         return I2C_NACKF;                     //Ошибка, не получен ответ.
     }
     
     //Передача данных в шину I2C побайтно
     while(1)
     {
-        while(tx > 0)
+        I2C->TXDR = data[item++];
+        if(!wait_to_send())                       //Ожидание отправки адресной посылки
         {
-            I2C->TXDR = data[item++];
-            if(!wait_to_send())                       //Ожидание отправки адресной посылки
-            {
-                busy = false;
-                return I2C_ERR;                       //Ошибка, не получен ответ.
-            }
-            tx--;
+            return I2C_ERR;                       //Ошибка, не получен ответ.
         }
-        //nBytes -= tx;
         if(TRANSFER_COMPL_REL())
         {
-            tx = set_transmit_bytes(nBytes);
+            set_transmit_bytes(nBytes);
         }
         if(TRANSFER_COMPL()) break;
     }
@@ -117,7 +111,7 @@ i2c_status i2c_read(uint8_t* data, uint16_t nBytes)
     
     if(nBytes == 0) return I2C_NODATA;
    
-    rx = set_transmit_mode(nBytes);          //Установка количества принимаемых байт
+    set_transmit_bytes(nBytes);          //Установка количества принимаемых байт
             
     /*if(mode.START == 1)*/ START_COND();
     
@@ -136,7 +130,7 @@ i2c_status i2c_read(uint8_t* data, uint16_t nBytes)
         }
         if(TRANSFER_COMPL_REL())
         {
-            rx = set_transmit_mode(nBytes);
+            set_transmit_bytes(nBytes);
         }
     }
 
@@ -148,24 +142,23 @@ i2c_status i2c_read(uint8_t* data, uint16_t nBytes)
 
 
 
-static uint8_t set_transmit_bytes(int16_t txBytes)
+static void set_transmit_bytes(int16_t bytes)
 {
     //uint32_t cr2 = I2C->CR2;
     //cr2 &= ~((0xFF << NBYTE) | (1 << RELOAD));
                 
-    if(txBytes <= TXRX_MAX)
+    if(bytes <= TXRX_MAX)
     {
         //cr2 |= (txBytes << NBYTE);
-        SEND_BYTES_NORELOAD(txBytes);
+        SEND_BYTES_NORELOAD(bytes);
+        nBytes = 0;
     }
     else
     {
         //cr2 |= (TXRX_MAX << NBYTE) | (1 << RELOAD);
         SEND_BYTES_RELOAD(TXRX_MAX);
-        txBytes = TXRX_MAX;
+        nBytes -= TXRX_MAX;
     }
-    //I2C->CR2 = cr2;
-    return txBytes;
 }
 
 static bool wait_to_send()
@@ -193,6 +186,6 @@ static bool wait_to_send()
 void I2C_stop()
 {
     STOP_COND();
-    busy = false;
+    //busy = false;
 }
 
